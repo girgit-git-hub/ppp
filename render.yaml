@@ -1,0 +1,49 @@
+# ProofPay core API/web blueprint. Workflows are NOT deployed by this file.
+# Render PostgreSQL and external AI/PayPal secrets are required.
+databases:
+  - name: proofpay-db
+    plan: free
+services:
+  - type: web
+    name: proofpay-api
+    runtime: node
+    rootDir: apps/api
+    plan: free
+    buildCommand: npm install && npx prisma generate --schema ../../prisma/schema.prisma && npm run build
+    preDeployCommand: npx prisma db push --schema ../../prisma/schema.prisma
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: proofpay-db
+          property: connectionString
+      - key: WEB_ORIGIN
+        fromService:
+          name: proofpay-web
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: PAYPAL_ENVIRONMENT
+        value: SANDBOX
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+  - type: web
+    name: proofpay-web
+    runtime: static
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: proofpay-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
